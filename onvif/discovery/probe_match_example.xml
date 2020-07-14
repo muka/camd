@@ -1,0 +1,34 @@
+<s:Envelope xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:i="http://printer.example.org/2003/imaging" xmlns:s="http://www.w3.org/2003/05/soap-envelope">
+  <s:Header>
+    <a:Action>
+      http://schemas.xmlsoap.org/ws/2005/04/discovery/ProbeMatches
+    </a:Action>
+    <a:MessageID>
+      uuid:e32e6863-ea5e-4ee4-997e-69539d1ff2cc
+    </a:MessageID>
+    <a:RelatesTo>
+      uuid:0a6dc791-2be6-4991-9af1-454778a1917a
+    </a:RelatesTo>
+    <a:To>
+      http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous
+    </a:To>
+    <d:AppSequence InstanceId="1077004800" MessageNumber="2"/>
+  </s:Header>
+  <s:Body>
+    <d:ProbeMatches>
+      <d:ProbeMatch>
+        <a:EndpointReference>
+          <a:Address>
+            uuid:98190dc2-0890-4ef8-ac9a-5940995e6119
+          </a:Address>
+        </a:EndpointReference>
+        <d:Types>i:PrintBasic i:PrintAdvanced</d:Types>
+        <d:Scopes>
+          ldap:///ou=engineering,o=examplecom,c=us ldap:///ou=floor1,ou=b42,ou=anytown,o=examplecom,c=us http://itdept/imaging/deployment/2004-12-04
+        </d:Scopes>
+        <d:XAddrs>http://prn-example/PRN42/b42-1668-a</d:XAddrs>
+        <d:MetadataVersion>75965</d:MetadataVersion>
+      </d:ProbeMatch>
+    </d:ProbeMatches>
+  </s:Body>
+</s:Envelope>
