@@ -4,12 +4,12 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/gofrs/uuid"
+	"github.com/muka/camd/device"
 	"log"
 	"net"
 	"strings"
 	"time"
-
-	"github.com/gofrs/uuid"
 )
 
 var errWrongDiscoveryResponse = errors.New("Response is not related to discovery request")
@@ -17,18 +17,6 @@ var errWrongDiscoveryResponse = errors.New("Response is not related to discovery
 const (
 	maxDatagramSize = 8192
 )
-
-//Device API wrapper
-type Device struct {
-	LastUpdate int64
-	MediaURI   string
-	UUID       string
-	Address    string
-	Name       string
-	Types      []string
-	Hardware   string
-	Country    string
-}
 
 // NewDiscovery init a new discovery wrapper
 func NewDiscovery() *Discovery {
@@ -39,7 +27,7 @@ func NewDiscovery() *Discovery {
 type Discovery struct {
 	stop    chan bool
 	ticker  *time.Ticker
-	Matches chan Device
+	Matches chan device.Device
 }
 
 // Stop blocks the discovery process
@@ -76,12 +64,12 @@ func (ws *Discovery) getAddrs() ([]string, error) {
 func (ws *Discovery) Start() error {
 
 	ws.stop = make(chan bool)
-	ws.Matches = make(chan Device)
+	ws.Matches = make(chan device.Device)
 	ws.ticker = time.NewTicker(30 * time.Second)
 
 	addrs, err := ws.getAddrs()
 	if err != nil {
-		return fmt.Errorf("Failed to get addrs: %s\n", err)
+		return fmt.Errorf("Failed to get addrs: %s", err)
 	}
 
 	discover := func(addr string) {
@@ -112,7 +100,7 @@ func (ws *Discovery) Start() error {
 	return nil
 }
 
-func runWSDiscovery(matches chan Device, addr string) error {
+func runWSDiscovery(matches chan device.Device, addr string) error {
 
 	requestUUID, err := uuid.NewV4()
 	if err != nil {
@@ -176,22 +164,22 @@ func runWSDiscovery(matches chan Device, addr string) error {
 	return nil
 }
 
-func parseResponse(messageID string, buffer []byte) (Device, error) {
+func parseResponse(messageID string, buffer []byte) (device.Device, error) {
 
 	response := ProbeMatchEnvelope{}
 
 	err := xml.Unmarshal(buffer, &response)
 	if err != nil {
-		return Device{}, err
+		return device.Device{}, err
 	}
 
 	relatesTo := strings.ReplaceAll(strings.Trim(response.Header.RelatesTo, "\n \t"), "uuid:", "")
 	if relatesTo != messageID {
 		log.Printf("Skip unrelated response [%s<>%s]\n", relatesTo, messageID)
-		return Device{}, nil
+		return device.Device{}, nil
 	}
 
-	dev := Device{}
+	dev := device.Device{}
 	for _, probeMatch := range response.Body.ProbeMatches.ProbeMatch {
 
 		addrs := strings.Split(probeMatch.XAddrs, " ")

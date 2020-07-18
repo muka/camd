@@ -8,13 +8,14 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/muka/camd/device"
 	"github.com/muka/camd/onvif/discovery"
 	goonvif "github.com/use-go/onvif"
 	"github.com/use-go/onvif/media"
 )
 
 // Discover devices on the network
-func Discover() error {
+func Discover(emitter chan device.Device) error {
 
 	wsDiscovery := discovery.NewDiscovery()
 
@@ -23,7 +24,7 @@ func Discover() error {
 		return fmt.Errorf("listen failed: %s", err)
 	}
 
-	devices := map[string]*discovery.Device{}
+	devices := map[string]*device.Device{}
 
 	for {
 		select {
@@ -41,6 +42,8 @@ func Discover() error {
 			devices[dev.UUID] = &dev
 
 			log.Printf("Found ONVIF device name=%s source=%s\n", dev.Name, dev.MediaURI)
+
+			emitter <- dev
 
 			break
 		}

@@ -15,7 +15,9 @@ limitations under the License.
 */
 package main
 
-import "github.com/muka/camd/cmd"
+import (
+	"github.com/muka/camd/cmd"
+)
 
 func main() {
 	cmd.Execute()

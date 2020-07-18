@@ -16,7 +16,12 @@ limitations under the License.
 package cmd
 
 import (
+	"log"
+	"os"
+
+	"github.com/muka/camd/device"
 	"github.com/muka/camd/onvif"
+	"github.com/muka/camd/video"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +31,34 @@ var discoverCmd = &cobra.Command{
 	Short: "Discover camera sources",
 	Long:  `This command search for camera sources on the local network(s).`,
 	Run: func(cmd *cobra.Command, args []string) {
-		onvif.Discover()
+
+		emitter := make(chan device.Device)
+
+		go func() {
+			for {
+				select {
+				case dev := <-emitter:
+					log.Printf("Received device %+v", dev)
+				}
+			}
+		}()
+
+		devices, err := video.ListDevices()
+		if err != nil {
+			log.Fatal(err)
+			os.Exit(1)
+		}
+
+		for _, device := range devices {
+			emitter <- device
+		}
+
+		err = onvif.Discover(emitter)
+		if err != nil {
+			log.Fatal(err)
+			os.Exit(1)
+		}
+
 	},
 }
 
