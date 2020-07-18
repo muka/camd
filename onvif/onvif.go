@@ -1,14 +1,16 @@
 package onvif
 
 import (
+	"encoding/xml"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/url"
+	"time"
 
 	"github.com/muka/camd/onvif/discovery"
-	"github.com/use-go/onvif"
-	"github.com/use-go/onvif/device"
+	goonvif "github.com/use-go/onvif"
+	"github.com/use-go/onvif/media"
 )
 
 // Discover devices on the network
@@ -26,32 +28,52 @@ func Discover() error {
 	for {
 		select {
 		case dev := <-wsDiscovery.Matches:
-			if _, ok := devices[dev.UUID]; ok {
+
+			mediaURI, err := getMediaURI(dev.Address)
+			if err != nil {
+				log.Printf("getMediaURI error: %s\n", err)
+				delete(devices, dev.UUID)
 				continue
 			}
-			log.Printf("dev %s\n", dev)
-			uri, err := url.Parse(dev.Address)
-			if err != nil {
-				log.Printf("cannot parse %s: %s", uri, err)
-			}
 
-			client(uri.Host)
+			dev.MediaURI = mediaURI
+			dev.LastUpdate = time.Now().UnixNano()
+			devices[dev.UUID] = &dev
+
+			log.Printf("Found ONVIF device name=%s source=%s\n", dev.Name, dev.MediaURI)
+
 			break
 		}
 	}
 
 }
 
-func client(ipaddr string) {
-	dev, err := onvif.NewDevice(ipaddr)
+func getMediaURI(uri string) (string, error) {
+
+	uriItems, err := url.Parse(uri)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	dev.Authenticate("admin", "zsyy12345")
 
-	log.Printf("output %+v", dev.GetServices())
+	dev, err := goonvif.NewDevice(uriItems.Host)
+	if err != nil {
+		return "", err
+	}
 
-	res, err := dev.CallMethod(device.GetUsers{})
-	bs, _ := ioutil.ReadAll(res.Body)
-	log.Printf("output %+v %s", res.StatusCode, bs)
+	res, err := dev.CallMethod(media.GetStreamUri{})
+	if err != nil {
+		return "", err
+	}
+
+	b, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return "", err
+	}
+
+	getStremUriResponse := GetStremUriResponse{}
+	if err = xml.Unmarshal(b, &getStremUriResponse); err != nil {
+		return "", err
+	}
+
+	return getStremUriResponse.GetURI(), nil
 }

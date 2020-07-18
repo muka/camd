@@ -20,12 +20,14 @@ const (
 
 //Device API wrapper
 type Device struct {
-	UUID     string
-	Address  string
-	Name     string
-	Types    []string
-	Hardware string
-	Country  string
+	LastUpdate int64
+	MediaURI   string
+	UUID       string
+	Address    string
+	Name       string
+	Types      []string
+	Hardware   string
+	Country    string
 }
 
 // NewDiscovery init a new discovery wrapper
