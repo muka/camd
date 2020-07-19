@@ -4,12 +4,13 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/gofrs/uuid"
-	"github.com/muka/camd/device"
 	"log"
 	"net"
 	"strings"
 	"time"
+
+	"github.com/gofrs/uuid"
+	"github.com/muka/camd/device"
 )
 
 var errWrongDiscoveryResponse = errors.New("Response is not related to discovery request")
@@ -72,30 +73,32 @@ func (ws *Discovery) Start() error {
 		return fmt.Errorf("Failed to get addrs: %s", err)
 	}
 
-	discover := func(addr string) {
-		log.Printf("Discovering on addr=%s\n", addr)
-		err := runWSDiscovery(ws.Matches, addr)
-		if err != nil {
-			log.Printf("discover error on addr=%s: %s", addr, err)
+	discover := func() {
+		for _, addr := range addrs {
+			go func(addr string) {
+				log.Printf("Discovering on addr=%s\n", addr)
+				err := runWSDiscovery(ws.Matches, addr)
+				if err != nil {
+					log.Printf("discover error on addr=%s: %s", addr, err)
+				}
+			}(addr)
 		}
 	}
 
-	for _, addr := range addrs {
-		go func(addr string) {
-			discover(addr)
-			for {
-				select {
-				case <-ws.stop:
-					log.Printf("Stop discovery on addr=%s\n", addr)
-					return
-				case <-ws.ticker.C:
-					discover(addr)
-					break
-				}
-
+	discover()
+	go func() {
+		for {
+			select {
+			case <-ws.stop:
+				log.Println("Stopped discovery")
+				return
+			case <-ws.ticker.C:
+				discover()
+				break
 			}
-		}(addr)
-	}
+
+		}
+	}()
 
 	return nil
 }
@@ -129,7 +132,7 @@ func runWSDiscovery(matches chan device.Device, addr string) error {
 	defer conn.Close()
 
 	// Set connection's timeout
-	err = conn.SetDeadline(time.Now().Add(time.Second * 30))
+	err = conn.SetDeadline(time.Now().Add(time.Second * 10))
 	if err != nil {
 		return err
 	}
@@ -161,6 +164,7 @@ func runWSDiscovery(matches chan device.Device, addr string) error {
 		matches <- device
 	}
 
+	log.Printf("Completed discovery on %s\n", addr)
 	return nil
 }
 

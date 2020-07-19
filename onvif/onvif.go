@@ -15,7 +15,7 @@ import (
 )
 
 // Discover devices on the network
-func Discover(emitter chan device.Device) error {
+func Discover(emitter chan device.OnChangeEvent) error {
 
 	wsDiscovery := discovery.NewDiscovery()
 
@@ -43,7 +43,7 @@ func Discover(emitter chan device.Device) error {
 
 			log.Printf("Found ONVIF device name=%s source=%s\n", dev.Name, dev.MediaURI)
 
-			emitter <- dev
+			emitter <- device.OnChanged(dev, device.DeviceAdded)
 
 			break
 		}

@@ -32,25 +32,22 @@ var discoverCmd = &cobra.Command{
 	Long:  `This command search for camera sources on the local network(s).`,
 	Run: func(cmd *cobra.Command, args []string) {
 
-		emitter := make(chan device.Device)
+		emitter := make(chan device.OnChangeEvent)
 
 		go func() {
 			for {
 				select {
-				case dev := <-emitter:
-					log.Printf("Received device %+v", dev)
+				case <-emitter:
+					// case dev := <-emitter:
+					// log.Printf("Received device name=%s", dev.Device.Name)
 				}
 			}
 		}()
 
-		devices, err := video.ListDevices()
+		err := video.WatchDevices(emitter)
 		if err != nil {
 			log.Fatal(err)
 			os.Exit(1)
-		}
-
-		for _, device := range devices {
-			emitter <- device
 		}
 
 		err = onvif.Discover(emitter)
