@@ -28,22 +28,28 @@ func Discover(emitter chan device.OnChangeEvent) error {
 
 	for {
 		select {
-		case dev := <-wsDiscovery.Matches:
+		case ev := <-wsDiscovery.Matches:
 
-			mediaURI, err := getMediaURI(dev.Address)
-			if err != nil {
-				log.Printf("getMediaURI error: %s\n", err)
-				delete(devices, dev.UUID)
-				continue
+			if ev.Device.MediaURI == "" && ev.Event == device.DeviceAdded {
+				mediaURI, err := getMediaURI(ev.Device.Address)
+				if err != nil {
+					log.Printf("getMediaURI error: %s\n", err)
+					delete(devices, ev.Device.UUID)
+					continue
+				}
+
+				ev.Device.MediaURI = mediaURI
+				ev.Device.LastUpdate = time.Now().UnixNano()
+				devices[ev.Device.UUID] = &ev.Device
 			}
 
-			dev.MediaURI = mediaURI
-			dev.LastUpdate = time.Now().UnixNano()
-			devices[dev.UUID] = &dev
+			op := "Added"
+			if ev.Event == device.DeviceRemoved {
+				op = "Removed"
+			}
+			log.Printf("%s ONVIF device name=%s source=%s\n", op, ev.Device.Name, ev.Device.MediaURI)
 
-			log.Printf("Found ONVIF device name=%s source=%s\n", dev.Name, dev.MediaURI)
-
-			emitter <- device.OnChanged(dev, device.DeviceAdded)
+			emitter <- ev
 
 			break
 		}

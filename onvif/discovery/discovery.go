@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -19,6 +20,8 @@ const (
 	maxDatagramSize = 8192
 )
 
+var cachedDevices = map[string]map[string]device.Device{}
+
 // NewDiscovery init a new discovery wrapper
 func NewDiscovery() *Discovery {
 	return &Discovery{}
@@ -28,7 +31,8 @@ func NewDiscovery() *Discovery {
 type Discovery struct {
 	stop    chan bool
 	ticker  *time.Ticker
-	Matches chan device.Device
+	Matches chan device.OnChangeEvent
+	mut     sync.Mutex
 }
 
 // Stop blocks the discovery process
@@ -57,7 +61,7 @@ func (ws *Discovery) getAddrs() ([]string, error) {
 		}
 	}
 
-	log.Printf("Got addrs=%s", addrs)
+	// log.Printf("Got addrs=%s", addrs)
 	return addrs, err
 }
 
@@ -65,8 +69,8 @@ func (ws *Discovery) getAddrs() ([]string, error) {
 func (ws *Discovery) Start() error {
 
 	ws.stop = make(chan bool)
-	ws.Matches = make(chan device.Device)
-	ws.ticker = time.NewTicker(30 * time.Second)
+	ws.Matches = make(chan device.OnChangeEvent)
+	ws.ticker = time.NewTicker(5 * time.Second)
 
 	addrs, err := ws.getAddrs()
 	if err != nil {
@@ -76,8 +80,13 @@ func (ws *Discovery) Start() error {
 	discover := func() {
 		for _, addr := range addrs {
 			go func(addr string) {
-				log.Printf("Discovering on addr=%s\n", addr)
-				err := runWSDiscovery(ws.Matches, addr)
+				// log.Printf("Discovering on addr=%s\n", addr)
+				ws.mut.Lock()
+				if _, ok := cachedDevices[addr]; !ok {
+					cachedDevices[addr] = map[string]device.Device{}
+				}
+				ws.mut.Unlock()
+				err := ws.runDiscovery(addr)
 				if err != nil {
 					log.Printf("discover error on addr=%s: %s", addr, err)
 				}
@@ -103,7 +112,7 @@ func (ws *Discovery) Start() error {
 	return nil
 }
 
-func runWSDiscovery(matches chan device.Device, addr string) error {
+func (ws *Discovery) runDiscovery(addr string) error {
 
 	requestUUID, err := uuid.NewV4()
 	if err != nil {
@@ -132,7 +141,7 @@ func runWSDiscovery(matches chan device.Device, addr string) error {
 	defer conn.Close()
 
 	// Set connection's timeout
-	err = conn.SetDeadline(time.Now().Add(time.Second * 10))
+	err = conn.SetDeadline(time.Now().Add(time.Second * 2))
 	if err != nil {
 		return err
 	}
@@ -142,6 +151,8 @@ func runWSDiscovery(matches chan device.Device, addr string) error {
 	if err != nil {
 		return err
 	}
+
+	localCache := map[string]device.Device{}
 
 	for {
 
@@ -156,15 +167,46 @@ func runWSDiscovery(matches chan device.Device, addr string) error {
 			}
 		}
 
-		device, err := parseResponse(requestID, buffer)
+		dev, err := parseResponse(requestID, buffer)
 		if err != nil && err != errWrongDiscoveryResponse {
 			return err
 		}
 
-		matches <- device
+		// matches <- dev
+		localCache[dev.UUID] = dev
+		// cachedDevices[addr][dev.UUID] = dev
 	}
 
-	log.Printf("Completed discovery on %s\n", addr)
+	removed := map[string]bool{}
+
+	ws.mut.Lock()
+
+	for uuid := range cachedDevices[addr] {
+		removed[uuid] = true
+	}
+
+	for uuid, dev := range localCache {
+		if _, ok := cachedDevices[addr][uuid]; ok {
+			removed[uuid] = false
+			continue
+		}
+		// added
+		cachedDevices[addr][uuid] = dev
+		ws.Matches <- device.OnChanged(cachedDevices[addr][uuid], device.DeviceAdded)
+	}
+
+	for uuid, isRemoved := range removed {
+		if isRemoved {
+			// removed
+			ws.Matches <- device.OnChanged(cachedDevices[addr][uuid], device.DeviceRemoved)
+			delete(cachedDevices[addr], uuid)
+
+		}
+	}
+
+	ws.mut.Unlock()
+
+	// log.Printf("Completed discovery on %s\n", addr)
 	return nil
 }
 
