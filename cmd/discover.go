@@ -20,6 +20,7 @@ import (
 	"os"
 
 	"github.com/muka/camd/device"
+	"github.com/muka/camd/hook"
 	"github.com/muka/camd/onvif"
 	"github.com/muka/camd/video"
 	"github.com/spf13/cobra"
@@ -37,9 +38,13 @@ var discoverCmd = &cobra.Command{
 		go func() {
 			for {
 				select {
-				case <-emitter:
+				case ev := <-emitter:
 					// case dev := <-emitter:
 					// log.Printf("Received device name=%s", dev.Device.Name)
+					err := hook.Request(ev)
+					if err != nil {
+						log.Printf("Error on request: %s", err)
+					}
 				}
 			}
 		}()
